@@ -1,9 +1,9 @@
 {
     "openapi": "3.0.0",
     "info": {
-      "title": "Audio Steganography API",
-      "description": "REST API for embedding secret messages in audio files using steganography techniques",
-      "version": "1.0.0",
+      "title": "Audio Steganography API with AES Encryption",
+      "description": "REST API for embedding encrypted secret messages in audio files using advanced steganography techniques with AES-256-CBC encryption",
+      "version": "2.0.0",
       "contact": {
         "email": "support@example.com"
       }
@@ -17,7 +17,11 @@
     "tags": [
       {
         "name": "steganography",
-        "description": "Steganography operations"
+        "description": "Steganography operations with encryption"
+      },
+      {
+        "name": "security",
+        "description": "Security and key management operations"
       },
       {
         "name": "system",
@@ -42,8 +46,54 @@
                       "status": {
                         "type": "string",
                         "example": "ok"
+                      },
+                      "timestamp": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Current server timestamp"
                       }
                     }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/generate-key": {
+        "post": {
+          "tags": ["security"],
+          "summary": "Generate AES encryption key",
+          "description": "Generates a new 256-bit AES encryption key for secure steganography operations",
+          "operationId": "generateKey",
+          "responses": {
+            "200": {
+              "description": "AES key generated successfully",
+              "content": {
+                "application/octet-stream": {
+                  "schema": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "AES-256 encryption key file (.key extension)"
+                  }
+                }
+              },
+              "headers": {
+                "Content-Disposition": {
+                  "description": "Attachment with filename",
+                  "schema": {
+                    "type": "string",
+                    "example": "attachment; filename=aes_key_20231201_143022.key"
+                  }
+                }
+              }
+            },
+            "500": {
+              "description": "Key generation failed",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
                   }
                 }
               }
@@ -54,11 +104,95 @@
       "/embed": {
         "post": {
           "tags": ["steganography"],
-          "summary": "Embed secret data in audio",
-          "description": "Embeds secret text into a WAV audio file using steganography",
+          "summary": "Embed encrypted secret data in audio",
+          "description": "Embeds encrypted secret text into a WAV audio file using advanced steganography with psychoacoustic masking",
           "operationId": "embedSecret",
           "requestBody": {
-            "description": "Audio file and secret data to embed",
+            "description": "Audio file, AES key, and secret data to embed",
+            "required": true,
+            "content": {
+              "multipart/form-data": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "key_file": {
+                      "type": "string",
+                      "format": "binary",
+                      "description": "AES encryption key file (.key extension)"
+                    },
+                    "audio_file": {
+                      "type": "string",
+                      "format": "binary",
+                      "description": "WAV audio file (will be resampled to 44.1kHz)"
+                    },
+                    "secret_text": {
+                      "type": "string",
+                      "description": "Secret text to embed in the audio (alternative to secret_file)"
+                    },
+                    "secret_file": {
+                      "type": "string",
+                      "format": "binary",
+                      "description": "Text file containing the secret to embed (alternative to secret_text)"
+                    }
+                  },
+                  "required": ["key_file", "audio_file"]
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Secret data embedded successfully",
+              "content": {
+                "audio/wav": {
+                  "schema": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "WAV audio file with embedded encrypted secret"
+                  }
+                }
+              },
+              "headers": {
+                "Content-Disposition": {
+                  "description": "Attachment with filename",
+                  "schema": {
+                    "type": "string",
+                    "example": "attachment; filename=stego_20231201_143022_original.wav"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Bad request - missing required files or invalid input",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "500": {
+              "description": "Embedding operation failed",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/extract": {
+        "post": {
+          "tags": ["steganography"],
+          "summary": "Extract and decrypt secret data from audio",
+          "description": "Extracts and decrypts secret text from a WAV audio file with embedded steganographic data",
+          "operationId": "extractSecret",
+          "requestBody": {
+            "description": "Audio file with embedded secret and AES key for decryption",
             "required": true,
             "content": {
               "multipart/form-data": {
@@ -68,32 +202,57 @@
                     "audio_file": {
                       "type": "string",
                       "format": "binary",
-                      "description": "WAV audio file"
+                      "description": "WAV audio file with embedded encrypted secret"
                     },
-                    "secret_text": {
-                      "type": "string",
-                      "description": "Secret text to embed in the audio"
-                    },
-                    "secret_file": {
+                    "key_file": {
                       "type": "string",
                       "format": "binary",
-                      "description": "Text file containing the secret to embed"
+                      "description": "AES encryption key file (.key extension) used for embedding"
                     }
                   },
-                  "required": ["audio_file"]
+                  "required": ["audio_file", "key_file"]
                 }
               }
             }
           },
           "responses": {
             "200": {
-              "description": "Successful operation",
+              "description": "Secret data extracted successfully",
               "content": {
-                "audio/wav": {
+                "text/plain": {
                   "schema": {
                     "type": "string",
                     "format": "binary",
-                    "description": "Audio file with embedded secret"
+                    "description": "Text file containing the extracted secret data"
+                  }
+                }
+              },
+              "headers": {
+                "Content-Disposition": {
+                  "description": "Attachment with filename",
+                  "schema": {
+                    "type": "string",
+                    "example": "attachment; filename=extracted_secret_20231201_143022.txt"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Bad request - missing required files",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "500": {
+              "description": "Extraction operation failed",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
                   }
                 }
               }
@@ -101,43 +260,19 @@
           }
         }
       },
-      "/extract": {
-      "post": {
-        "tags": ["steganography"],
-        "summary": "Extract secret data from audio",
-        "description": "Extracts secret text from a WAV audio file using steganography",
-        "operationId": "extractSecret",
-        "requestBody": {
-          "description": "Audio file to extract secret from",
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "audio_file": {
-                    "type": "string",
-                    "format": "binary",
-                    "description": "WAV audio file with embedded secret"
-                  }
-                },
-                "required": ["audio_file"]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful extraction",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "secret_text": {
-                      "type": "string",
-                      "description": "Extracted secret text"
-                    }
+      "/api/docs": {
+        "get": {
+          "tags": ["system"],
+          "summary": "Get API documentation",
+          "description": "Returns JSON documentation for the API endpoints and features",
+          "operationId": "getApiDocs",
+          "responses": {
+            "200": {
+              "description": "API documentation retrieved successfully",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ApiDocumentation"
                   }
                 }
               }
@@ -145,23 +280,66 @@
           }
         }
       }
-      },
-      "/api/docs": {
-        "get": {
-          "tags": ["system"],
-          "summary": "Get API documentation",
-          "description": "Returns JSON documentation for the API",
-          "operationId": "getApiDocs",
-          "responses": {
-            "200": {
-              "description": "Successful operation",
-              "content": {
-                "application/json": {
-                  "schema": {
-                    "type": "object"
+    },
+    "components": {
+      "schemas": {
+        "ErrorResponse": {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "description": "Error message describing what went wrong"
+            }
+          },
+          "required": ["error"]
+        },
+        "ApiDocumentation": {
+          "type": "object",
+          "properties": {
+            "api": {
+              "type": "string",
+              "description": "API name"
+            },
+            "version": {
+              "type": "string",
+              "description": "API version"
+            },
+            "description": {
+              "type": "string",
+              "description": "API description"
+            },
+            "endpoints": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "method": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "parameters": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "returns": {
+                    "type": "string"
                   }
                 }
               }
+            },
+            "features": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "List of API features"
             }
           }
         }
