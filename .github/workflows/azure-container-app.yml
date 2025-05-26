@@ -6,8 +6,8 @@ on:
     branches: [ main ]
 
 env:
-  AZURE_CONTAINER_REGISTRY: stegoapi.azurecr.io
-  AZURE_CONTAINER_REGISTRY_NAME: stegoapi
+  AZURE_CONTAINER_REGISTRY: stego-api.azurecr.io
+  AZURE_CONTAINER_REGISTRY_NAME: stego-api
   AZURE_CONTAINER_APP_NAME: stegoapi
   AZURE_RESOURCE_GROUP: stegoweb_group
   IMAGE_NAME: stegoapi
