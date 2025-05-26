@@ -1,0 +1,170 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+      "title": "Audio Steganography API",
+      "description": "REST API for embedding secret messages in audio files using steganography techniques",
+      "version": "1.0.0",
+      "contact": {
+        "email": "support@example.com"
+      }
+    },
+    "servers": [
+      {
+        "url": "/",
+        "description": "Current server"
+      }
+    ],
+    "tags": [
+      {
+        "name": "steganography",
+        "description": "Steganography operations"
+      },
+      {
+        "name": "system",
+        "description": "System operations"
+      }
+    ],
+    "paths": {
+      "/health": {
+        "get": {
+          "tags": ["system"],
+          "summary": "Health check endpoint",
+          "description": "Check if the API is running properly",
+          "operationId": "healthCheck",
+          "responses": {
+            "200": {
+              "description": "API is running correctly",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "example": "ok"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/embed": {
+        "post": {
+          "tags": ["steganography"],
+          "summary": "Embed secret data in audio",
+          "description": "Embeds secret text into a WAV audio file using steganography",
+          "operationId": "embedSecret",
+          "requestBody": {
+            "description": "Audio file and secret data to embed",
+            "required": true,
+            "content": {
+              "multipart/form-data": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "audio_file": {
+                      "type": "string",
+                      "format": "binary",
+                      "description": "WAV audio file"
+                    },
+                    "secret_text": {
+                      "type": "string",
+                      "description": "Secret text to embed in the audio"
+                    },
+                    "secret_file": {
+                      "type": "string",
+                      "format": "binary",
+                      "description": "Text file containing the secret to embed"
+                    }
+                  },
+                  "required": ["audio_file"]
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Successful operation",
+              "content": {
+                "audio/wav": {
+                  "schema": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Audio file with embedded secret"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/extract": {
+      "post": {
+        "tags": ["steganography"],
+        "summary": "Extract secret data from audio",
+        "description": "Extracts secret text from a WAV audio file using steganography",
+        "operationId": "extractSecret",
+        "requestBody": {
+          "description": "Audio file to extract secret from",
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "audio_file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "WAV audio file with embedded secret"
+                  }
+                },
+                "required": ["audio_file"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful extraction",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "secret_text": {
+                      "type": "string",
+                      "description": "Extracted secret text"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      },
+      "/api/docs": {
+        "get": {
+          "tags": ["system"],
+          "summary": "Get API documentation",
+          "description": "Returns JSON documentation for the API",
+          "operationId": "getApiDocs",
+          "responses": {
+            "200": {
+              "description": "Successful operation",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
