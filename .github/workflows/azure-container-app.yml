@@ -18,7 +18,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Log in to Azure
       uses: azure/login@v1
@@ -34,11 +34,13 @@ jobs:
 
     - name: Build Docker image
       run: |
-        docker build -t ${{ env.AZURE_CONTAINER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} .
+        docker build -t ${{ env.AZURE_CONTAINER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+                     -t ${{ env.AZURE_CONTAINER_REGISTRY }}/${{ env.IMAGE_NAME }}:latest .
 
     - name: Push Docker image to ACR
       run: |
         docker push ${{ env.AZURE_CONTAINER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        docker push ${{ env.AZURE_CONTAINER_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
     - name: Deploy to Azure Container App
       uses: azure/container-apps-deploy-action@v1
@@ -46,5 +48,9 @@ jobs:
         imageToDeploy: ${{ env.AZURE_CONTAINER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
         resourceGroup: ${{ env.AZURE_RESOURCE_GROUP }}
         containerAppName: ${{ env.AZURE_CONTAINER_APP_NAME }}
+        targetPort: 8080
         environmentVariables: |
-          PORT=5000
+          PYTHONPATH=/app
+          PYTHONUNBUFFERED=1
+          FLASK_APP=app.py
+          FLASK_ENV=production

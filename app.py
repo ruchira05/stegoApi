@@ -19,29 +19,37 @@ app = Flask(__name__)
 # Enable CORS for all routes
 CORS(app, origins=['*'], methods=['GET', 'POST', 'OPTIONS'])
 
-# Configure upload folders
-UPLOAD_FOLDER = '/tmp/uploads'
-OUTPUT_FOLDER = '/tmp/outputs'
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+# Configure upload folders - use /app instead of /tmp for Azure Container Apps
+UPLOAD_FOLDER = '/app/uploads'
+OUTPUT_FOLDER = '/app/outputs'
+LOG_FOLDER = '/app/logs'
 
-# Configure logging
+# Create directories if they don't exist
+for folder in [UPLOAD_FOLDER, OUTPUT_FOLDER, LOG_FOLDER]:
+    os.makedirs(folder, exist_ok=True)
+
+# Configure logging with proper path
+log_file = os.path.join(LOG_FOLDER, 'app.log')
 logging.basicConfig(
-    filename='log.txt',
-    level=logging.DEBUG,
+    level=logging.INFO,  # Changed from DEBUG for production
     format='%(asctime)s - %(levelname)s - %(message)s',
-    filemode='a'
+    handlers=[
+        logging.FileHandler(log_file),
+        logging.StreamHandler()  # Also log to console for Azure Container Apps
+    ]
 )
 
-# Swagger UI Configuration
-SWAGGER_URL = '/swagger'  # URL for exposing Swagger UI (without trailing '/')
-API_URL = '/swagger.json'  # Our API url (can of course be a local resource)
+# Get port from environment variable (Azure Container Apps requirement)
+PORT = int(os.environ.get('PORT', 8080))
 
-# Call factory function to create our blueprint
+# Swagger UI Configuration
+SWAGGER_URL = '/swagger'
+API_URL = '/swagger.json'
+
 swaggerui_blueprint = get_swaggerui_blueprint(
-    SWAGGER_URL,  # Swagger UI static files will be mapped to '{SWAGGER_URL}/dist/'
+    SWAGGER_URL,
     API_URL,
-    config={  # Swagger UI config overrides
+    config={
         'app_name': "Audio Steganography API with AES Encryption",
         'dom_id': '#swagger-ui',
         'url_prefix': SWAGGER_URL,
@@ -53,10 +61,9 @@ swaggerui_blueprint = get_swaggerui_blueprint(
     }
 )
 
-# Register blueprint for Swagger UI
 app.register_blueprint(swaggerui_blueprint)
 
-# OpenAPI Specification (inline JSON)
+# OpenAPI Specification (updated with correct port)
 OPENAPI_SPEC = {
     "openapi": "3.0.0",
     "info": {
@@ -136,15 +143,6 @@ OPENAPI_SPEC = {
                                     "description": "AES-256 encryption key file (.key extension)"
                                 }
                             }
-                        },
-                        "headers": {
-                            "Content-Disposition": {
-                                "description": "Attachment with filename",
-                                "schema": {
-                                    "type": "string",
-                                    "example": "attachment; filename=aes_key_20231201_143022.key"
-                                }
-                            }
                         }
                     },
                     "500": {
@@ -208,15 +206,6 @@ OPENAPI_SPEC = {
                                     "type": "string",
                                     "format": "binary",
                                     "description": "WAV audio file with embedded encrypted secret"
-                                }
-                            }
-                        },
-                        "headers": {
-                            "Content-Disposition": {
-                                "description": "Attachment with filename",
-                                "schema": {
-                                    "type": "string",
-                                    "example": "attachment; filename=stego_20231201_143022_original.wav"
                                 }
                             }
                         }
@@ -283,15 +272,6 @@ OPENAPI_SPEC = {
                                     "type": "string",
                                     "format": "binary",
                                     "description": "Text file containing the extracted secret data"
-                                }
-                            }
-                        },
-                        "headers": {
-                            "Content-Disposition": {
-                                "description": "Attachment with filename",
-                                "schema": {
-                                    "type": "string",
-                                    "example": "attachment; filename=extracted_secret_20231201_143022.txt"
                                 }
                             }
                         }
@@ -415,34 +395,39 @@ def swagger_json():
 def health_check():
     """Health check endpoint"""
     logging.info("Health check requested")
-    return jsonify({"status": "ok", "timestamp": datetime.now().isoformat()}), 200
+    return jsonify({
+        "status": "ok", 
+        "timestamp": datetime.now().isoformat(),
+        "version": "2.0.0"
+    }), 200
+
+@app.route('/')
+def index():
+    """Root endpoint"""
+    return jsonify({
+        "message": "Audio Steganography API",
+        "version": "2.0.0",
+        "swagger_ui": "/swagger",
+        "api_docs": "/api/docs",
+        "health": "/health"
+    })
 
 @app.route('/generate-key', methods=['POST'])
 def generate_key():
-    """
-    Generate and download AES encryption key
-    
-    Returns:
-    - AES key file (.key extension)
-    """
+    """Generate and download AES encryption key"""
     try:
         logging.info("Key generation requested")
         
-        # Generate AES key
         key = generate_aes_key()
-        
-        # Create unique filename with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         key_filename = f"aes_key_{timestamp}.key"
         key_path = os.path.join(OUTPUT_FOLDER, key_filename)
         
-        # Save key to file
         with open(key_path, 'wb') as key_file:
             key_file.write(key)
         
         logging.info(f"AES key generated and saved: {key_filename}")
         
-        # Return the key file for download
         return send_file(
             key_path,
             as_attachment=True,
@@ -456,17 +441,10 @@ def generate_key():
 
 @app.route('/embed', methods=['POST'])
 def embed_secret():
-    """
-    Embed secret data into audio file using AES encryption
+    """Embed secret data into audio file using AES encryption"""
+    key_path = None
+    audio_path = None
     
-    Expects:
-    - key_file: AES key file (.key extension)
-    - audio_file: WAV audio file
-    - secret_text: Text content OR secret_file: Text file
-    
-    Returns:
-    - WAV file with embedded encrypted secret
-    """
     try:
         logging.info("Embed operation requested")
         
@@ -489,10 +467,10 @@ def embed_secret():
             secret_file = request.files['secret_file']
             if secret_file.filename != '':
                 secret_data = secret_file.read()
-                logging.debug(f"Secret data loaded from file: {len(secret_data)} bytes")
+                logging.info(f"Secret data loaded from file: {len(secret_data)} bytes")
         elif 'secret_text' in request.form:
             secret_data = request.form['secret_text'].encode('utf-8')
-            logging.debug(f"Secret text provided: {len(secret_data)} bytes")
+            logging.info(f"Secret text provided: {len(secret_data)} bytes")
         
         if secret_data is None:
             return jsonify({"error": "No secret data provided"}), 400
@@ -538,7 +516,7 @@ def embed_secret():
     finally:
         # Clean up temporary files
         for temp_file in [key_path, audio_path]:
-            if 'temp_file' in locals() and os.path.exists(temp_file):
+            if temp_file and os.path.exists(temp_file):
                 try:
                     os.remove(temp_file)
                 except:
@@ -546,16 +524,10 @@ def embed_secret():
 
 @app.route('/extract', methods=['POST'])
 def extract_secret():
-    """
-    Extract hidden data from steganographic audio file
+    """Extract hidden data from steganographic audio file"""
+    audio_path = None
+    key_path = None
     
-    Expects:
-    - audio_file: WAV file with embedded secret
-    - key_file: AES key file (.key extension)
-    
-    Returns:
-    - Text file with extracted secret data
-    """
     try:
         logging.info("Extract operation requested")
         
@@ -612,7 +584,7 @@ def extract_secret():
     finally:
         # Clean up temporary files
         for temp_file in [audio_path, key_path]:
-            if 'temp_file' in locals() and os.path.exists(temp_file):
+            if temp_file and os.path.exists(temp_file):
                 try:
                     os.remove(temp_file)
                 except:
@@ -688,9 +660,9 @@ def internal_error(e):
     return jsonify({"error": "Internal server error"}), 500
 
 if __name__ == '__main__':
-    logging.info("Starting Audio Steganography API server with Swagger UI")
+    logging.info("Starting Audio Steganography API server")
     print("🚀 Server starting...")
-    print("📚 Swagger UI available at: http://localhost:5000/swagger")
-    print("🔧 API documentation at: http://localhost:5000/api/docs")
-    print("❤️  Health check at: http://localhost:5000/health")
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    print(f"📚 Swagger UI available at: http://localhost:{PORT}/swagger")
+    print(f"🔧 API documentation at: http://localhost:{PORT}/api/docs")
+    print(f"❤️  Health check at: http://localhost:{PORT}/health")
+    app.run(host='0.0.0.0', port=PORT, debug=False)
