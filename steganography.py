@@ -116,10 +116,10 @@ def embed_secret_in_audio(input_audio_path, secret_data, key, output_audio_path)
         if sr != TARGET_SR:
             audio_data = librosa.resample(audio_data, orig_sr=sr, target_sr=TARGET_SR)
             sr = TARGET_SR
-        
+        logging.debug(f"Audio loaded: {len(audio_data)} samples at {sr} Hz")
         # Normalize audio
         normalized_audio = audio_data / np.max(np.abs(audio_data)) * (10 ** (TARGET_PEAK / 20))
-        
+        logging.debug(f"Audio loaded and normalized: {len(normalized_audio)} samples at {sr} Hz")
         # Compute STFT and frame energies
         stft = librosa.stft(normalized_audio, n_fft=FRAME_SIZE, hop_length=HOP_LENGTH)
         magnitude = np.abs(stft)

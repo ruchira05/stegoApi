@@ -172,6 +172,11 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
 # User Added
+
 # macOS Finder specific files
 .DS_Store 
+
+# logs
+log.txt
