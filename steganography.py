@@ -1,6 +1,7 @@
 import os
 import librosa
 import numpy as np
+import pyloudnorm as pyln
 import wave
 import logging
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -118,7 +119,7 @@ def embed_secret_in_audio(input_audio_path, secret_data, key, output_audio_path)
             sr = TARGET_SR
         logging.debug(f"Audio loaded: {len(audio_data)} samples at {sr} Hz")
         # Normalize audio
-        normalized_audio = audio_data / np.max(np.abs(audio_data)) * (10 ** (TARGET_PEAK / 20))
+        normalized_audio = pyln.normalize.peak(audio_data, TARGET_PEAK)
         logging.debug(f"Audio loaded and normalized: {len(normalized_audio)} samples at {sr} Hz")
         # Compute STFT and frame energies
         stft = librosa.stft(normalized_audio, n_fft=FRAME_SIZE, hop_length=HOP_LENGTH)
@@ -155,22 +156,19 @@ def embed_secret_in_audio(input_audio_path, secret_data, key, output_audio_path)
         # Embed secret data
         data_index = 0
         embedded_samples = 0
-        
         for sample_idx in maskable_samples:
             if data_index < len(secret_bin):
                 bits_to_embed = secret_bin[data_index:data_index + EMBEDDING_DEPTH]
                 if len(bits_to_embed) < EMBEDDING_DEPTH:
                     bits_to_embed = bits_to_embed.ljust(EMBEDDING_DEPTH, '0')
-                
                 byte_index = sample_idx * 2
-                if byte_index + 2 <= len(frames):
-                    sample_bytes = frames[byte_index:byte_index + 2]
-                    sample_int = int.from_bytes(sample_bytes, byteorder='little', signed=True)
-                    sample_int &= ~(2**EMBEDDING_DEPTH - 1)  # Clear LSBs
-                    sample_int |= int(bits_to_embed, 2)
-                    frames[byte_index:byte_index + 2] = sample_int.to_bytes(2, byteorder='little', signed=True)
-                    data_index += EMBEDDING_DEPTH
-                    embedded_samples += 1
+                sample_bytes = frames[byte_index:byte_index + 2]
+                sample_int = int.from_bytes(sample_bytes, byteorder='little', signed=True)
+                sample_int &= ~(2**EMBEDDING_DEPTH - 1)  # Clear LSBs
+                sample_int |= int(bits_to_embed, 2)
+                frames[byte_index:byte_index + 2] = sample_int.to_bytes(2, byteorder='little', signed=True)
+                data_index += EMBEDDING_DEPTH
+                embedded_samples += 1
             else:
                 break
         

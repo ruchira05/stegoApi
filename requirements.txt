@@ -7,3 +7,4 @@ soundfile==0.12.1
 werkzeug==2.3.7
 gunicorn==21.2.0
 cryptography==41.0.4
+pyloudnorm
