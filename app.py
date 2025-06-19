@@ -476,11 +476,11 @@ def embed_secret():
             return jsonify({"error": "No secret data provided"}), 400
         
         # Save files temporarily
-        key_filename = secure_filename(key_file.filename)
+        key_filename = secure_filename(key_file.filename or "uploaded_key.key")
         key_path = os.path.join(UPLOAD_FOLDER, key_filename)
         key_file.save(key_path)
         
-        audio_filename = secure_filename(audio_file.filename)
+        audio_filename = secure_filename(audio_file.filename or "uploaded_audio.wav")
         audio_path = os.path.join(UPLOAD_FOLDER, audio_filename)
         audio_file.save(audio_path)
         
@@ -545,11 +545,11 @@ def extract_secret():
             return jsonify({"error": "Empty file name provided"}), 400
         
         # Save files temporarily
-        audio_filename = secure_filename(audio_file.filename)
+        audio_filename = secure_filename(audio_file.filename or "uploaded_audio.wav")
         audio_path = os.path.join(UPLOAD_FOLDER, audio_filename)
         audio_file.save(audio_path)
         
-        key_filename = secure_filename(key_file.filename)
+        key_filename = secure_filename(key_file.filename or "uploaded_key.key")
         key_path = os.path.join(UPLOAD_FOLDER, key_filename)
         key_file.save(key_path)
         
