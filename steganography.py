@@ -49,24 +49,6 @@ def read_aes_key(key_path):
         logging.error(f"Error loading AES key from {key_path}: {e}")
         raise
 
-def encrypt_data(data, key):
-    """Encrypt data using AES-256-CBC"""
-    try:
-        iv = os.urandom(16)
-        padder = padding.PKCS7(128).padder()
-        padded_data = padder.update(data) + padder.finalize()
-        
-        cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
-        encryptor = cipher.encryptor()
-        encrypted_data = encryptor.update(padded_data) + encryptor.finalize()
-        
-        combined_bytes = iv + encrypted_data
-        logging.debug(f"Data encrypted: original size {len(data)} bytes, encrypted size {len(combined_bytes)} bytes")
-        return combined_bytes
-    except Exception as e:
-        logging.error(f"Error encrypting data: {e}")
-        raise
-
 def decrypt_data(encrypted_data, key):
     """Decrypt data using AES-256-CBC"""
     try:
@@ -94,9 +76,16 @@ def prepare_secret_data(secret_data, key):
     try:
         if isinstance(secret_data, str):
             secret_data = secret_data.encode('utf-8')
+        iv = os.urandom(16)
+        padder = padding.PKCS7(128).padder()
+        padded_data = padder.update(secret_data) + padder.finalize()
         
-        encrypted_data = encrypt_data(secret_data, key)
-        secret_bin = ''.join(format(byte, '08b') for byte in encrypted_data)
+        cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+        encryptor = cipher.encryptor()
+        encrypted_data = encryptor.update(padded_data) + encryptor.finalize()
+        
+        combined_bytes = iv + encrypted_data
+        secret_bin = ''.join(format(byte, '08b') for byte in combined_bytes)
         length = len(secret_bin)
         length_bin = format(length, '032b')
         total_binary_to_embed = length_bin + secret_bin
@@ -141,6 +130,8 @@ def embed_secret_in_audio(input_audio_path, secret_data, key, output_audio_path)
         
         # Calculate capacity
         max_capacity_bits = len(maskable_samples) * EMBEDDING_DEPTH
+        max_capacity_bytes = max_capacity_bits / 8
+        max_capacity_kb = max_capacity_bytes / 1024
         logging.debug(f"Audio capacity: {max_capacity_bits} bits ({max_capacity_bits/8/1024:.2f} KB)")
         
         # Prepare secret data
@@ -262,8 +253,29 @@ def extract_secret_from_audio(stego_audio_path, key):
             if len(byte_bin) == 8:
                 secret_bytes.append(int(byte_bin, 2))
         
+     
+         # Extract IV and encrypted data
+        if len(secret_bytes) < 16:
+            raise ValueError("Not enough bytes for IV.")
+        iv = secret_bytes[:16]
+        encrypted_data = secret_bytes[16:]
+        
+    # Decrypt data
+        try:
+            cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+            decryptor = cipher.decryptor()
+            decrypted_padded = decryptor.update(encrypted_data) + decryptor.finalize()
+
+            # Unpad data
+            unpadder = padding.PKCS7(128).unpadder()
+            decrypted_data = unpadder.update(decrypted_padded) + unpadder.finalize()      
+        except Exception as e:
+            raise RuntimeError(f"Decryption failed: {e}")
+ 
+            
+        
         # Decrypt data
-        decrypted_data = decrypt_data(secret_bytes, key)
+        # decrypted_data = decrypt_data(secret_bytes, key)
         
         logging.debug(f"Extraction completed: {len(secret_bin)} bits extracted from {extracted_samples} samples")
         
